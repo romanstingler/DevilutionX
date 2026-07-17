@@ -501,6 +501,11 @@ endif()
 
 add_devilutionx_object_library(libdevilutionx_light_render
   engine/render/light_render.cpp
+  engine/render/visibility_render.cpp
+)
+target_link_dependencies(libdevilutionx_light_render PUBLIC
+  DevilutionX::SDL
+  tl
 )
 
 add_devilutionx_object_library(libdevilutionx_lighting

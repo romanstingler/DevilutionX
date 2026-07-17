@@ -35,6 +35,7 @@
 #include "engine/render/dun_render.hpp"
 #include "engine/render/light_render.hpp"
 #include "engine/render/text_render.hpp"
+#include "engine/render/visibility_render.hpp"
 #include "engine/trn.hpp"
 #include "engine/world_tile.hpp"
 #include "game_mode.hpp"
@@ -606,7 +607,8 @@ void DrawCell(const Surface &out, const Lightmap lightmap, Point tilePosition, P
 
 	// Create a special lightmap buffer to bleed light up walls
 	uint8_t lightmapBuffer[TILE_WIDTH * TILE_HEIGHT];
-	const Lightmap bleedLightmap = Lightmap::bleedUp(*GetOptions().Graphics.perPixelLighting, lightmap, targetBufferPosition, lightmapBuffer);
+	uint8_t visibilityBuffer[TILE_WIDTH * TILE_HEIGHT] = {};
+	const Lightmap bleedLightmap = Lightmap::bleedUp(*GetOptions().Graphics.perPixelLighting, lightmap, targetBufferPosition, lightmapBuffer, visibilityBuffer);
 
 	// If the first micro tile is a floor tile, it may be followed
 	// by foliage which should be rendered now.
@@ -677,7 +679,9 @@ void DrawCell(const Surface &out, const Lightmap lightmap, Point tilePosition, P
  */
 void DrawFloorTile(const Surface &out, const Lightmap &lightmap, Point tilePosition, Point targetBufferPosition)
 {
-	const int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
+	int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
+	if (*GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off && !IsTileVisibleToParty(tilePosition))
+		lightTableIndex = LightsMax;
 
 	const uint8_t *tbl = LightTables[lightTableIndex].data();
 #ifdef _DEBUG
@@ -779,7 +783,9 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 void DrawDungeon(const Surface &out, const Lightmap &lightmap, Point tilePosition, Point targetBufferPosition)
 {
 	assert(InDungeonBounds(tilePosition));
-	const int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
+	int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
+	if (*GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off && !IsTileVisibleToParty(tilePosition))
+		lightTableIndex = LightsMax;
 
 	DrawCell(out, lightmap, tilePosition, targetBufferPosition, lightTableIndex);
 
@@ -917,7 +923,8 @@ void DrawDungeon(const Surface &out, const Lightmap &lightmap, Point tilePositio
 			if (perPixelLighting) {
 				// Create a special lightmap buffer to bleed light up walls
 				uint8_t lightmapBuffer[TILE_WIDTH * TILE_HEIGHT];
-				const Lightmap bleedLightmap = Lightmap::bleedUp(*GetOptions().Graphics.perPixelLighting, lightmap, targetBufferPosition, lightmapBuffer);
+				uint8_t visibilityBuffer[TILE_WIDTH * TILE_HEIGHT] = {};
+				const Lightmap bleedLightmap = Lightmap::bleedUp(*GetOptions().Graphics.perPixelLighting, lightmap, targetBufferPosition, lightmapBuffer, visibilityBuffer);
 
 				if (transparency)
 					ClxDrawBlendedWithLightmap(out, targetBufferPosition, (*pSpecialCels)[bArch], bleedLightmap);
@@ -1271,7 +1278,9 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DunRenderStats.clear();
 #endif
 
-	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting, position, Point {} + offset,
+	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting,
+	    *GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off,
+	    position, Point {} + offset,
 	    gnScreenWidth, gnViewportHeight, rows, columns,
 	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,
 	    dLight, MicroTileLen);

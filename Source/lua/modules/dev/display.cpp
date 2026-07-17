@@ -28,6 +28,12 @@ std::string DebugCmdVision(std::optional<bool> on)
 	return StrCat("Vision highlighting: ", DebugVision ? "On" : "Off");
 }
 
+std::string DebugCmdShadowCulling(std::optional<bool> on)
+{
+	DebugShadowCulling = on.value_or(!DebugShadowCulling);
+	return StrCat("Shadow culling overlay: ", DebugShadowCulling ? "On" : "Off");
+}
+
 std::string DebugCmdPath(std::optional<bool> on)
 {
 	DebugPath = on.value_or(!DebugPath);
@@ -128,6 +134,7 @@ sol::table LuaDevDisplayModule(sol::state_view &lua)
 	LuaSetDocFn(table, "scrollView", "(on: boolean = nil)", "Toggle view scrolling via Shift+Mouse.", &DebugCmdScrollView);
 	LuaSetDocFn(table, "tileData", "(name: string = nil)", "Toggle showing tile data.", &DebugCmdShowTileData);
 	LuaSetDocFn(table, "vision", "(on: boolean = nil)", "Toggle vision debug rendering.", &DebugCmdVision);
+	LuaSetDocFn(table, "shadowCulling", "(on: boolean = nil)", "Toggle shadow culling debug overlay.", &DebugCmdShadowCulling);
 	return table;
 }
 

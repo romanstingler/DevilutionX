@@ -33,6 +33,7 @@ bool DebugToggle = false;
 bool DebugGodMode = false;
 bool DebugInvisible = false;
 bool DebugVision = false;
+bool DebugShadowCulling = false;
 bool DebugPath = false;
 bool DebugGrid = false;
 ankerl::unordered_dense::map<int, Point> DebugCoordsMap;

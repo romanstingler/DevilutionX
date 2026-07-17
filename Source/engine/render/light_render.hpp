@@ -25,6 +25,12 @@ public:
 	    std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,
 	    const uint8_t *fullyLitLightTable, const uint8_t *fullyDarkLightTable);
 
+	explicit Lightmap(const uint8_t *outBuffer, uint16_t outPitch,
+	    std::span<const uint8_t> lightmapBuffer, uint16_t lightmapPitch,
+	    std::span<const uint8_t> visibilityMapBuffer, uint16_t visibilityPitch,
+	    std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,
+	    const uint8_t *fullyLitLightTable, const uint8_t *fullyDarkLightTable);
+
 	[[nodiscard]] uint8_t adjustColor(uint8_t color, uint8_t lightLevel) const
 	{
 		return lightTables[lightLevel][color];
@@ -46,10 +52,33 @@ public:
 		return lightmapBuffer.data() + row * lightmapPitch + rowOffset;
 	}
 
+	/**
+	 * @brief Shadow-culling level at a given output pixel.
+	 *
+	 * Parallel to `getLightingAt` but reads the visibility buffer. The value
+	 * is in 0..15 (0 = no extra darkening, 15 = pitch black). When shadow
+	 * culling is disabled the buffer is uniformly 0 so this is a no-op.
+	 */
+	const uint8_t *getVisibilityAt(const uint8_t *outLoc) const
+	{
+		if (visibilityMapBuffer.empty())
+			return nullptr;
+		const ptrdiff_t outDist = outLoc - outBuffer;
+		const ptrdiff_t rowOffset = outDist % outPitch;
+
+		if (outDist < 0) {
+			const int modOffset = rowOffset < 0 ? outPitch : 0;
+			return visibilityMapBuffer.data() + rowOffset + modOffset;
+		}
+
+		const ptrdiff_t row = outDist / outPitch;
+		return visibilityMapBuffer.data() + row * visibilityPitch + rowOffset;
+	}
+
 	[[nodiscard]] bool isFullyLitLightTable(const uint8_t *lightTable) const { return lightTable == fullyLitLightTable_; }
 	[[nodiscard]] bool isFullyDarkLightTable(const uint8_t *lightTable) const { return lightTable == fullyDarkLightTable_; }
 
-	static Lightmap build(bool perPixelLighting, Point tilePosition, Point targetBufferPosition,
+	static Lightmap build(bool perPixelLighting, bool shadowCullingActive, Point tilePosition, Point targetBufferPosition,
 	    int viewportWidth, int viewportHeight, int rows, int columns,
 	    const uint8_t *outBuffer, uint16_t outPitch,
 	    std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,
@@ -57,7 +86,7 @@ public:
 	    const uint8_t tileLights[MAXDUNX][MAXDUNY],
 	    uint_fast8_t microTileLen);
 
-	static Lightmap bleedUp(bool perPixelLighting, const Lightmap &source, Point targetBufferPosition, std::span<uint8_t> lightmapBuffer);
+	static Lightmap bleedUp(bool perPixelLighting, const Lightmap &source, Point targetBufferPosition, std::span<uint8_t> lightmapBuffer, std::span<uint8_t> visibilityBuffer);
 
 private:
 	const uint8_t *outBuffer;
@@ -65,6 +94,11 @@ private:
 
 	std::span<const uint8_t> lightmapBuffer;
 	const uint16_t lightmapPitch;
+
+	// Parallel visibility (shadow-culling) channel. Empty when shadow culling
+	// is disabled; reading `getVisibilityAt` returns nullptr in that case.
+	std::span<const uint8_t> visibilityMapBuffer;
+	const uint16_t visibilityPitch;
 
 	std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables;
 	const uint8_t *fullyLitLightTable_;

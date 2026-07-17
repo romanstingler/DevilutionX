@@ -23,6 +23,7 @@ extern bool DebugToggle;
 extern bool DebugGodMode;
 extern bool DebugInvisible;
 extern bool DebugVision;
+extern bool DebugShadowCulling;
 extern bool DebugPath;
 extern bool DebugGrid;
 extern ankerl::unordered_dense::map<int, Point> DebugCoordsMap;

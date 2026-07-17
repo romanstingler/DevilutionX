@@ -69,8 +69,10 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillWithLightmap(uint8_t *dst, unsi
 {
 	DVL_ASSUME(length != 0);
 	const uint8_t *light = lightmap.getLightingAt(dst);
-	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY light, light + length, dst, [color, &lightmap](uint8_t lightLevel) {
-		return lightmap.adjustColor(color, lightLevel);
+	const uint8_t *visibility = lightmap.getVisibilityAt(dst);
+	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY light, light + length, dst, [color, &lightmap, visibility](uint8_t lightLevel) mutable {
+		const uint8_t visLevel = visibility != nullptr ? *visibility++ : 0;
+		return lightmap.adjustColor(color, lightLevel > visLevel ? lightLevel : visLevel);
 	});
 }
 
@@ -78,8 +80,10 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsWithLightmap(uint8_t *DVL_RES
 {
 	DVL_ASSUME(length != 0);
 	const uint8_t *light = lightmap.getLightingAt(dst);
-	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, light, dst, [&lightmap](uint8_t srcColor, uint8_t lightLevel) {
-		return lightmap.adjustColor(srcColor, lightLevel);
+	const uint8_t *visibility = lightmap.getVisibilityAt(dst);
+	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, light, dst, [&lightmap, visibility](uint8_t srcColor, uint8_t lightLevel) mutable {
+		const uint8_t visLevel = visibility != nullptr ? *visibility++ : 0;
+		return lightmap.adjustColor(srcColor, lightLevel > visLevel ? lightLevel : visLevel);
 	});
 }
 
@@ -148,8 +152,11 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlendedWithLightmap(uint8_t *ds
 {
 	DVL_ASSUME(length != 0);
 	const uint8_t *light = lightmap.getLightingAt(dst);
-	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY light, light + length, dst, dst, [color, &lightmap, pal = paletteTransparencyLookup](uint8_t lightLevel, uint8_t dstColor) {
-		uint8_t srcColor = lightmap.adjustColor(color, lightLevel);
+	const uint8_t *visibility = lightmap.getVisibilityAt(dst);
+	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY light, light + length, dst, dst, [color, &lightmap, visibility, pal = paletteTransparencyLookup](uint8_t lightLevel, uint8_t dstColor) mutable {
+		const uint8_t visLevel = visibility != nullptr ? *visibility++ : 0;
+		const uint8_t effectiveLevel = lightLevel > visLevel ? lightLevel : visLevel;
+		uint8_t srcColor = lightmap.adjustColor(color, effectiveLevel);
 		return pal[srcColor][dstColor];
 	});
 }
@@ -158,11 +165,13 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlendedWithLightmap(uint8_t *
 {
 	DVL_ASSUME(length != 0);
 	const uint8_t *light = lightmap.getLightingAt(dst);
+	const uint8_t *visibility = lightmap.getVisibilityAt(dst);
 
 	if (length < 1024) {
 		uint8_t litSrc[1024];
-		std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, light, litSrc, [&lightmap](uint8_t srcColor, uint8_t lightLevel) {
-			return lightmap.adjustColor(srcColor, lightLevel);
+		std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, light, litSrc, [&lightmap, visibility](uint8_t srcColor, uint8_t lightLevel) mutable {
+			const uint8_t visLevel = visibility != nullptr ? *visibility++ : 0;
+			return lightmap.adjustColor(srcColor, lightLevel > visLevel ? lightLevel : visLevel);
 		});
 		std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY litSrc, litSrc + length, dst, dst, [pal = paletteTransparencyLookup](uint8_t srcColor, uint8_t dstColor) {
 			return pal[dstColor][srcColor];
@@ -174,7 +183,9 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlendedWithLightmap(uint8_t *
 		uint8_t srcColor = src[i];
 		uint8_t dstColor = dst[i];
 		uint8_t lightLevel = light[i];
-		uint8_t litColor = lightmap.adjustColor(srcColor, lightLevel);
+		const uint8_t visLevel = visibility != nullptr ? visibility[i] : 0;
+		const uint8_t effectiveLevel = lightLevel > visLevel ? lightLevel : visLevel;
+		uint8_t litColor = lightmap.adjustColor(srcColor, effectiveLevel);
 		dst[i] = paletteTransparencyLookup[dstColor][litColor];
 	}
 }

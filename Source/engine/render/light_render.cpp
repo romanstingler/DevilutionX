@@ -10,6 +10,7 @@
 #include "engine/lighting_defs.hpp"
 #include "engine/point.hpp"
 #include "engine/render/overlapped_memset.hpp"
+#include "engine/render/visibility_render.hpp"
 #include "levels/dun_tile.hpp"
 #include "levels/gendung_defs.hpp"
 #include "utils/attributes.h"
@@ -19,6 +20,7 @@ namespace devilution {
 namespace {
 
 std::vector<uint8_t> LightmapBuffer;
+std::vector<uint8_t> VisibilityMapBuffer;
 
 void RenderFullTile(Point position, uint8_t lightLevel, uint8_t *lightmap, uint16_t pitch)
 {
@@ -494,23 +496,77 @@ void BuildLightmap(Point tilePosition, Point targetBufferPosition, uint16_t view
 	}
 }
 
+void BuildVisibilityMap(Point tilePosition, Point targetBufferPosition, uint16_t viewportWidth, uint16_t viewportHeight,
+    int rows, int columns, uint_fast8_t microTileLen)
+{
+	// Visibility buffer uses the same dimensions and tile walk as the lightmap.
+	// Stage 1 only writes full-LightsMax diamond tiles for tiles that the
+	// local party cannot see, so a single RenderFullTile per hidden tile is
+	// sufficient (matches the diamond footprint of the lightmap exactly).
+	const uint16_t bufferHeight = viewportHeight + (TILE_HEIGHT * (microTileLen / 2 + 1));
+	rows += microTileLen + 2;
+
+	const size_t totalPixels = static_cast<size_t>(viewportWidth) * bufferHeight;
+	VisibilityMapBuffer.assign(totalPixels, 0);
+
+	tilePosition += Displacement(Direction::NorthWest) * 2;
+	targetBufferPosition -= Displacement { TILE_WIDTH, TILE_HEIGHT };
+	rows += 3;
+	columns++;
+
+	uint8_t *visibilityMap = VisibilityMapBuffer.data();
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < columns; j++, tilePosition += Direction::East, targetBufferPosition.x += TILE_WIDTH) {
+			const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, true);
+			if (visLevel == 0)
+				continue;
+			RenderFullTile(targetBufferPosition, visLevel, visibilityMap, viewportWidth);
+		}
+
+		tilePosition += Displacement(Direction::West) * columns;
+		targetBufferPosition.x -= columns * TILE_WIDTH;
+
+		targetBufferPosition.y += TILE_HEIGHT / 2;
+		if ((i & 1) != 0) {
+			tilePosition.x++;
+			columns--;
+			targetBufferPosition.x += TILE_WIDTH / 2;
+		} else {
+			tilePosition.y++;
+			columns++;
+			targetBufferPosition.x -= TILE_WIDTH / 2;
+		}
+	}
+}
+
 } // namespace
 
 Lightmap::Lightmap(const uint8_t *outBuffer, uint16_t outPitch,
     std::span<const uint8_t> lightmapBuffer, uint16_t lightmapPitch,
     std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,
     const uint8_t *fullyLitLightTable, const uint8_t *fullyDarkLightTable)
+    : Lightmap(outBuffer, outPitch, lightmapBuffer, lightmapPitch, {}, 0, lightTables, fullyLitLightTable, fullyDarkLightTable)
+{
+}
+
+Lightmap::Lightmap(const uint8_t *outBuffer, uint16_t outPitch,
+    std::span<const uint8_t> lightmapBuffer, uint16_t lightmapPitch,
+    std::span<const uint8_t> visibilityMapBuffer, uint16_t visibilityPitch,
+    std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,
+    const uint8_t *fullyLitLightTable, const uint8_t *fullyDarkLightTable)
     : outBuffer(outBuffer)
     , outPitch(outPitch)
     , lightmapBuffer(lightmapBuffer)
     , lightmapPitch(lightmapPitch)
+    , visibilityMapBuffer(visibilityMapBuffer)
+    , visibilityPitch(visibilityPitch)
     , lightTables(lightTables)
     , fullyLitLightTable_(fullyLitLightTable)
     , fullyDarkLightTable_(fullyDarkLightTable)
 {
 }
 
-Lightmap Lightmap::build(bool perPixelLighting, Point tilePosition, Point targetBufferPosition,
+Lightmap Lightmap::build(bool perPixelLighting, bool shadowCullingActive, Point tilePosition, Point targetBufferPosition,
     int viewportWidth, int viewportHeight, int rows, int columns,
     const uint8_t *outBuffer, uint16_t outPitch,
     std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,
@@ -521,10 +577,18 @@ Lightmap Lightmap::build(bool perPixelLighting, Point tilePosition, Point target
 	if (perPixelLighting) {
 		BuildLightmap(tilePosition, targetBufferPosition, viewportWidth, viewportHeight, rows, columns, tileLights, microTileLen);
 	}
-	return Lightmap(outBuffer, outPitch, LightmapBuffer, viewportWidth, lightTables, fullyLitLightTable, fullyDarkLightTable);
+	if (shadowCullingActive) {
+		BuildVisibilityMap(tilePosition, targetBufferPosition, viewportWidth, viewportHeight, rows, columns, microTileLen);
+	} else {
+		VisibilityMapBuffer.clear();
+	}
+	std::span<const uint8_t> visBuffer = VisibilityMapBuffer;
+	const uint16_t visPitch = visBuffer.empty() ? uint16_t { 0 } : viewportWidth;
+	return Lightmap(outBuffer, outPitch, LightmapBuffer, viewportWidth,
+	    visBuffer, visPitch, lightTables, fullyLitLightTable, fullyDarkLightTable);
 }
 
-Lightmap Lightmap::bleedUp(bool perPixelLighting, const Lightmap &source, Point targetBufferPosition, std::span<uint8_t> lightmapBuffer)
+Lightmap Lightmap::bleedUp(bool perPixelLighting, const Lightmap &source, Point targetBufferPosition, std::span<uint8_t> lightmapBuffer, std::span<uint8_t> visibilityBuffer)
 {
 	assert(lightmapBuffer.size() >= TILE_WIDTH * TILE_HEIGHT);
 
@@ -554,6 +618,13 @@ Lightmap Lightmap::bleedUp(bool perPixelLighting, const Lightmap &source, Point 
 	const uint8_t *src = source.getLightingAt(outLoc);
 	uint8_t *dst = lightmapBuffer.data() + ((lightmapHeight - 1) * lightmapPitch);
 
+	// Parallel visibility (shadow-culling) channel; pointer into the same
+	// screen-space buffer. nullptr when shadow culling is disabled.
+	const uint8_t *visSrc = source.getVisibilityAt(outLoc);
+	uint8_t *visDst = visibilityBuffer.empty()
+	    ? nullptr
+	    : visibilityBuffer.data() + ((lightmapHeight - 1) * lightmapPitch);
+
 	int rowCount = clipBottom;
 	while (src >= source.lightmapBuffer.data() && dst >= lightmapBuffer.data()) {
 		const int bleed = std::max(0, (rowCount - TILE_HEIGHT / 2) * 2);
@@ -569,6 +640,17 @@ Lightmap Lightmap::bleedUp(bool perPixelLighting, const Lightmap &source, Point 
 		assert(src + lightOffset + lightLength <= source.lightmapBuffer.data() + source.lightmapBuffer.size());
 		memcpy(dst + lightOffset, src + lightOffset, lightLength);
 
+		// Mirror the bleed for the visibility channel
+		if (visDst != nullptr && visSrc != nullptr) {
+			assert(visDst + lightOffset + lightLength <= visibilityBuffer.data() + visibilityBuffer.size());
+			assert(visSrc + lightOffset + lightLength <= source.visibilityMapBuffer.data() + source.visibilityMapBuffer.size());
+			if (rowCount > clipBottom && lightLength < lightmapPitch)
+				memcpy(visDst, visDst + lightmapPitch, lightmapPitch);
+			memcpy(visDst + lightOffset, visSrc + lightOffset, lightLength);
+			visSrc -= source.visibilityPitch;
+			visDst -= lightmapPitch;
+		}
+
 		src -= source.lightmapPitch;
 		dst -= lightmapPitch;
 		rowCount++;
@@ -576,6 +658,8 @@ Lightmap Lightmap::bleedUp(bool perPixelLighting, const Lightmap &source, Point 
 
 	return Lightmap(outBuffer, source.outPitch,
 	    lightmapBuffer, lightmapPitch,
+	    visibilityBuffer.empty() ? std::span<const uint8_t>{} : std::span<const uint8_t>{ visibilityBuffer.data(), lightmapBuffer.size() },
+	    lightmapPitch,
 	    source.lightTables, source.fullyLitLightTable_, source.fullyDarkLightTable_);
 }
 
