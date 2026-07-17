@@ -23,6 +23,7 @@
 
 #include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
+#include "engine/render/gpu_sdl3/gpu_backend.h"
 #include "engine/render/primitive_render.hpp"
 #include "headless_mode.hpp"
 #include "init.hpp"
@@ -114,6 +115,9 @@ void dx_init()
 	Palette = SDLWrap::AllocPalette();
 	palette_init();
 	CreateBackBuffer();
+#if defined(USE_SDL3_GPU)
+	GPUBackendInit(ghMainWnd);
+#endif
 }
 
 Surface GlobalBackBuffer()
@@ -128,6 +132,9 @@ void dx_cleanup()
 		SDL_HideWindow(ghMainWnd);
 #endif
 
+#if defined(USE_SDL3_GPU)
+	GPUBackendShutdown();
+#endif
 	PalSurface = nullptr;
 	PinnedPalSurface = nullptr;
 	Palette = nullptr;
@@ -248,6 +255,21 @@ void RenderPresent()
 #endif
 		return;
 	}
+
+#if defined(USE_SDL3_GPU)
+	if (GPUBackendIsAvailable()) {
+		if (ControlMode == ControlTypes::VirtualGamepad) {
+			// Touch virtual gamepad overlay is not yet wired into the GPU backend
+			// (TODO: PR #4 in the GPU backend roadmap). Fall through to the legacy
+			// renderer instead of drawing nothing.
+		} else if (GPUBackendRenderFrame()) {
+			if (*GetOptions().Graphics.frameRateControl != FrameRateControl::VerticalSync) {
+				LimitFrameRate();
+			}
+			return;
+		}
+	}
+#endif
 
 #ifndef USE_SDL1
 	if (renderer != nullptr) {

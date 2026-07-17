@@ -645,6 +645,31 @@ sudo port select --set python3 python312
 
 </details>
 
+<details><summary>SDL_GPU render backend (experimental)</summary>
+
+When building with SDL3 (`-DUSE_SDL3=ON`), you can additionally enable an
+experimental `SDL_GPU`-based render backend:
+
+```sh
+cmake -B build -S . -DUSE_SDL3=ON -DUSE_SDL3_GPU=ON
+```
+
+Requirements:
+
+- SDL3 3.4.0 or newer (the same minimum required by `USE_SDL3`).
+- `glslangValidator` on the build host (used at configure time to compile the
+  passthrough vertex/fragment shaders to SPIRV).
+- Python 3 (used to embed the compiled shader blobs into the binary).
+- A Vulkan-capable system at runtime. The current implementation only
+  advertises `SDL_GPU_SHADERFORMAT_SPIRV`; D3D12/Metal targets require
+  additional shader cross-compilation that has not yet been wired up.
+
+On systems without Vulkan support the `gpuBackend` option (added to the
+Graphics menu when this flag is set) will fall back to the legacy SDL2-style
+2D renderer at startup.
+
+</details>
+
 <details><summary>DOS</summary>
 
 Cross-compile for DOS from Linux using DJGPP GCC 14.2.0. The build uses SDL3-dos

@@ -163,6 +163,66 @@ set(libdevilutionx_SRCS
   utils/surface_to_clx.cpp
   utils/timer.cpp)
 
+# Optional SDL_GPU render backend (USE_SDL3 + USE_SDL3_GPU only).
+# Compiles GLSL → SPIRV via glslangValidator and embeds the blobs via a small
+# Python helper. If glslangValidator or python3 is unavailable, configure fails
+# fast so users opt out of USE_SDL3_GPU rather than silently breaking builds.
+if(USE_SDL3_GPU)
+  find_program(GLSLANG_VALIDATOR glslangValidator REQUIRED)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+  set(_gpu_shader_dir "${CMAKE_CURRENT_BINARY_DIR}/engine/render/gpu_sdl3")
+  file(MAKE_DIRECTORY "${_gpu_shader_dir}")
+
+  set(_gpu_shader_data_h "${_gpu_shader_dir}/gpu_shader_data.h")
+  set(_gpu_shader_data_cpp "${_gpu_shader_dir}/gpu_shader_data.cpp")
+
+  set(_vert_spv "${_gpu_shader_dir}/passthrough.vert.spv")
+  set(_frag_spv "${_gpu_shader_dir}/passthrough.frag.spv")
+
+  add_custom_command(
+    OUTPUT "${_vert_spv}"
+    COMMAND ${GLSLANG_VALIDATOR} -V -S vert -o "${_vert_spv}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/engine/render/gpu_sdl3/gpu_shaders/passthrough.vert"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/engine/render/gpu_sdl3/gpu_shaders/passthrough.vert"
+    COMMENT "Compiling passthrough.vert → SPIRV"
+    VERBATIM)
+  add_custom_command(
+    OUTPUT "${_frag_spv}"
+    COMMAND ${GLSLANG_VALIDATOR} -V -S frag -o "${_frag_spv}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/engine/render/gpu_sdl3/gpu_shaders/passthrough.frag"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/engine/render/gpu_sdl3/gpu_shaders/passthrough.frag"
+    COMMENT "Compiling passthrough.frag → SPIRV"
+    VERBATIM)
+
+  add_custom_command(
+    OUTPUT "${_gpu_shader_data_h}" "${_gpu_shader_data_cpp}"
+    COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/engine/render/gpu_sdl3/spirv_to_c.py"
+            "${_vert_spv}"
+            "${_frag_spv}"
+            "${_gpu_shader_dir}/gpu_shader_data"
+            passthroughVertSpv
+            passthroughFragSpv
+    DEPENDS "${_vert_spv}" "${_frag_spv}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/engine/render/gpu_sdl3/spirv_to_c.py"
+    COMMENT "Embedding shader blobs"
+    VERBATIM)
+
+  add_library(libdevilutionx_gpu_sdl3 STATIC
+    engine/render/gpu_sdl3/gpu_backend.cpp
+    "${_gpu_shader_data_cpp}"
+  )
+  target_include_directories(libdevilutionx_gpu_sdl3 PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR})
+  target_compile_definitions(libdevilutionx_gpu_sdl3 PUBLIC USE_SDL3_GPU)
+  target_link_dependencies(libdevilutionx_gpu_sdl3 PUBLIC
+    DevilutionX::SDL
+    libdevilutionx_headless_mode
+    libdevilutionx_log
+    libdevilutionx_options)
+endif()
+
 # These files are responsible for most of the runtime in Debug mode.
 # Apply some optimizations to them even in Debug mode to get reasonable performance.
 #
@@ -1025,6 +1085,11 @@ target_link_dependencies(libdevilutionx PUBLIC
 )
 if(NOT TARGET_PLATFORM STREQUAL "dos")
   target_link_dependencies(libdevilutionx PUBLIC Threads::Threads)
+endif()
+
+if(USE_SDL3_GPU)
+  target_link_dependencies(libdevilutionx PUBLIC libdevilutionx_gpu_sdl3)
+  target_compile_definitions(libdevilutionx PUBLIC USE_SDL3_GPU)
 endif()
 if(DEVILUTIONX_SCREENSHOT_FORMAT STREQUAL DEVILUTIONX_SCREENSHOT_FORMAT_PNG)
   target_link_dependencies(libdevilutionx PUBLIC libdevilutionx_surface_to_png)

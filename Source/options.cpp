@@ -772,6 +772,9 @@ GraphicsOptions::GraphicsOptions()
           })
     , integerScaling("Integer Scaling", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::RecreateUI, N_("Integer Scaling"), N_("Scales the image using whole number pixel ratio."), false)
 #endif
+#if defined(USE_SDL3_GPU)
+    , gpuBackend("GPU Backend", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::RecreateUI, N_("GPU Backend"), N_("Use the SDL_GPU render backend instead of the legacy 2D renderer. Requires a Vulkan-capable system."), true)
+#endif
     , frameRateControl("Frame Rate Control",
           OptionEntryFlags::RecreateUI
 #if defined(NXDK) || defined(__ANDROID__)
@@ -821,6 +824,9 @@ std::vector<OptionEntryBase *> GraphicsOptions::GetEntries()
 		&upscale,
 		&scaleQuality,
 		&integerScaling,
+#endif
+#if defined(USE_SDL3_GPU)
+		&gpuBackend,
 #endif
 		&frameRateControl,
 		&brightness,

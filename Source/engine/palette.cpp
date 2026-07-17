@@ -31,6 +31,10 @@
 #include "utils/sdl_compat.h"
 #include "utils/str_cat.hpp"
 
+#if defined(USE_SDL3_GPU)
+#include "engine/render/gpu_sdl3/gpu_backend.h"
+#endif
+
 namespace devilution {
 
 std::array<SDL_Color, 256> logical_palette;
@@ -165,6 +169,9 @@ void SystemPaletteUpdated(int first, int ncolor)
 	if (!SDLC_SetSurfaceAndPaletteColors(PalSurface, Palette.get(), system_palette.data() + first, first, ncolor)) {
 		ErrSdl();
 	}
+#if defined(USE_SDL3_GPU)
+	GPUBackendOnPaletteChanged();
+#endif
 }
 
 void palette_init()

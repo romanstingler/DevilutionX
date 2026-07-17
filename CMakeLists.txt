@@ -110,6 +110,17 @@ if(USE_SDL1 AND USE_SDL3)
   message(FATAL_ERROR "USE_SDL1 and USE_SDL3 cannot be set at the same time")
 endif()
 
+# GPU backend (requires SDL3, currently Vulkan only)
+option(USE_SDL3_GPU "Use the SDL_GPU render backend (requires USE_SDL3, currently Vulkan-only)" OFF)
+if(USE_SDL3_GPU)
+  if(NOT USE_SDL3)
+    message(FATAL_ERROR "USE_SDL3_GPU requires USE_SDL3 to be enabled")
+  endif()
+  if(USE_SDL1)
+    message(FATAL_ERROR "USE_SDL3_GPU cannot be combined with USE_SDL1")
+  endif()
+endif()
+
 # Graphics options
 if(NOT USE_SDL1)
 if(USE_SDL3)

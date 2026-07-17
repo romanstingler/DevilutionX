@@ -541,6 +541,10 @@ struct GraphicsOptions : OptionCategoryBase {
 	/** @brief Only scale by values divisible by the width and height. */
 	OptionEntryBoolean integerScaling;
 #endif
+#if defined(USE_SDL3_GPU)
+	/** @brief Use the SDL_GPU render backend instead of the legacy 2D renderer. */
+	OptionEntryBoolean gpuBackend;
+#endif
 	/** @brief Limit frame rate either for vsync or CPU load. */
 	OptionEntryEnum<FrameRateControl> frameRateControl;
 	/** @brief Brightness level. */
