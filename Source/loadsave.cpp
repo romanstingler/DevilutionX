@@ -428,6 +428,8 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	player.AnimInfo.currentFrame = file.NextLENarrow<int32_t, int8_t>(-1);
 	file.Skip<uint32_t>(3); // Skip _pAnimWidth, _pAnimWidth2, _peflag
 	player.lightId = file.NextLE<int32_t>();
+	if (player.lightId >= MAXLIGHTS)
+		player.lightId = NO_LIGHT; // Reject out-of-range IDs from malformed/malicious saves
 	file.Skip<int32_t>(); // _pvid
 
 	player.queuedSpell.spellId = static_cast<SpellID>(file.NextLE<int32_t>());
@@ -762,6 +764,8 @@ bool gbSkipSync = false;
 	monster.lightId = file->NextLE<int8_t>();
 	if (monster.lightId == 0)
 		monster.lightId = NO_LIGHT; // Correct incorrect values in old saves
+	if (monster.lightId >= MAXLIGHTS)
+		monster.lightId = NO_LIGHT; // Reject out-of-range IDs from malformed/malicious saves
 
 	// Omit pointer name;
 
@@ -955,6 +959,8 @@ void LoadObject(LoadHelper &file, Object &object)
 	object._oTrapFlag = file.NextBool32();
 	object._oDoorFlag = file.NextBool32();
 	object._olid = file.NextLE<int32_t>();
+	if (object._olid >= MAXLIGHTS)
+		object._olid = NO_LIGHT; // Reject out-of-range IDs from malformed/malicious saves
 	object._oRndSeed = file.NextLE<uint32_t>();
 	object._oVar1 = file.NextLE<int32_t>();
 	object._oVar2 = file.NextLE<int32_t>();
