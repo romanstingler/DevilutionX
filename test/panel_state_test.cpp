@@ -88,9 +88,6 @@ void DoDisplaySpellsKeyPress()
 {
 	if (IsPlayerInStore())
 		return;
-	CloseCharPanel();
-	QuestLogIsOpen = false;
-	CloseInventory();
 	SpellbookFlag = false;
 	if (!SpellSelectFlag) {
 		DoSpeedBook();
@@ -448,7 +445,7 @@ TEST_F(PanelStateTest, DisplaySpellsBlockedWhileInStore)
 
 // ===== DisplaySpells (speed book) ==========================================
 
-TEST_F(PanelStateTest, DisplaySpellsClosesAllPanels)
+TEST_F(PanelStateTest, DisplaySpellsDoesNotCloseOtherPanels)
 {
 	DoInventoryKeyPress();
 	DoCharacterSheetKeyPress();
@@ -456,10 +453,22 @@ TEST_F(PanelStateTest, DisplaySpellsClosesAllPanels)
 	ASSERT_TRUE(CharFlag);
 
 	DoDisplaySpellsKeyPress();
-	EXPECT_FALSE(invflag) << "Display spells must close inventory";
-	EXPECT_FALSE(SpellbookFlag) << "Display spells must close spellbook";
-	EXPECT_FALSE(CharFlag) << "Display spells must close character sheet";
-	EXPECT_FALSE(QuestLogIsOpen) << "Display spells must close quest log";
+	EXPECT_TRUE(invflag) << "Display spells must not close inventory";
+	EXPECT_TRUE(CharFlag) << "Display spells must not close character sheet";
+	EXPECT_TRUE(SpellSelectFlag) << "Display spells must open the speedbook overlay";
+}
+
+TEST_F(PanelStateTest, DisplaySpellsClosesSpeedbookOverlayOnly)
+{
+	DoInventoryKeyPress();
+	DoCharacterSheetKeyPress();
+	DoDisplaySpellsKeyPress();
+	ASSERT_TRUE(SpellSelectFlag);
+
+	DoDisplaySpellsKeyPress();
+	EXPECT_FALSE(SpellSelectFlag) << "Second press must close the speedbook overlay";
+	EXPECT_TRUE(invflag) << "Closing the speedbook overlay must not close other panels";
+	EXPECT_TRUE(CharFlag) << "Closing the speedbook overlay must not close other panels";
 }
 
 // ===== Complex multi-step scenarios ========================================
@@ -488,12 +497,13 @@ TEST_F(PanelStateTest, FullPanelWorkflow)
 	EXPECT_FALSE(CharFlag);
 	EXPECT_TRUE(QuestLogIsOpen);
 
-	// Close everything with display spells
+	// Close speedbook overlay with display spells (other panels stay open)
 	DoDisplaySpellsKeyPress();
-	EXPECT_FALSE(invflag);
-	EXPECT_FALSE(SpellbookFlag);
-	EXPECT_FALSE(CharFlag);
-	EXPECT_FALSE(QuestLogIsOpen);
+	EXPECT_FALSE(SpellSelectFlag) << "Display spells must close the speedbook overlay";
+	EXPECT_TRUE(invflag);
+	EXPECT_TRUE(SpellbookFlag);
+	EXPECT_TRUE(CharFlag);
+	EXPECT_TRUE(QuestLogIsOpen);
 }
 
 TEST_F(PanelStateTest, StorePreventsAllToggles)

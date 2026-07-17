@@ -1719,9 +1719,6 @@ void DisplaySpellsKeyPressed()
 {
 	if (IsPlayerInStore())
 		return;
-	CloseCharPanel();
-	QuestLogIsOpen = false;
-	CloseInventory();
 	SpellbookFlag = false;
 	if (!SpellSelectFlag) {
 		DoSpeedBook();
