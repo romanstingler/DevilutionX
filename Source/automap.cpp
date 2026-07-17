@@ -17,6 +17,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "levels/gendung.h"
 #include "levels/setmaps.h"
+#include "missiles.h"
 #include "options.h"
 #include "player.h"
 #include "utils/attributes.h"
@@ -56,6 +57,8 @@ enum MapColors : uint8_t {
 	MapColorsWater = (PAL8_BLUE + 2),
 	/** color for hive acid on automap */
 	MapColorsAcid = (PAL8_YELLOW + 4),
+	/** color for town portal markers on automap */
+	MapColorsTownPortal = (PAL8_ORANGE + 4),
 };
 
 struct AutomapTile {
@@ -1423,6 +1426,35 @@ void DrawAutomapPlr(const Surface &out, const Displacement &myPlayerOffset, cons
 }
 
 /**
+ * @brief Renders a single missile marker (e.g. a town portal) on the automap at the missile's tile position.
+ */
+void DrawAutomapMissile(const Surface &out, const Displacement &myPlayerOffset, const Missile &missile, uint8_t color)
+{
+	const Point tile = missile.position.tile;
+	const int px = tile.x - (2 * AutomapOffset.deltaX) - ViewPosition.x;
+	const int py = tile.y - (2 * AutomapOffset.deltaY) - ViewPosition.y;
+
+	const int scale = (GetAutomapType() == AutomapType::Minimap) ? MinimapScale : AutoMapScale;
+
+	Point screen = {
+		(myPlayerOffset.deltaX * scale / 100 / 2) + ((px - py) * AmLine(AmLineLength::DoubleTile)),
+		(myPlayerOffset.deltaY * scale / 100 / 2) + ((px + py) * AmLine(AmLineLength::FullTile)),
+	};
+
+	screen += GetAutomapScreen();
+
+	if (GetAutomapType() != AutomapType::Minimap && CanPanelsCoverView()) {
+		if (IsRightPanelOpen())
+			screen.x -= gnScreenWidth / 4;
+		if (IsLeftPanelOpen())
+			screen.x += gnScreenWidth / 4;
+	}
+
+	screen.y -= AmLine(AmLineLength::FullTile);
+	DrawDiamond(out, screen, color);
+}
+
+/**
  * @brief Renders game info, such as the name of the current level, and in multi player the name of the game and the game password.
  */
 void DrawAutomapText(const Surface &out)
@@ -1867,6 +1899,12 @@ void DrawAutomap(const Surface &out)
 
 	if (AutoMapShowItems)
 		SearchAutomapItem(out, myPlayerOffset, 8, [](Point position) { return dItem[position.x][position.y] != 0; });
+
+	for (const Missile &missile : Missiles) {
+		if (missile._mitype == MissileID::TownPortal) {
+			DrawAutomapMissile(out, myPlayerOffset, missile, MapColorsTownPortal);
+		}
+	}
 #ifdef _DEBUG
 	if (IsDebugAutomapHighlightNeeded())
 		SearchAutomapItem(out, myPlayerOffset, std::max(MAXDUNX, MAXDUNY), ShouldHighlightDebugAutomapTile);
