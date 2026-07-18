@@ -6,12 +6,14 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include <expected.hpp>
 
 #include "DiabloUI/diabloui.h"
 #include "player.h"
+#include "utils/file_lock.hpp"
 
 #ifdef UNPACKED_SAVES
 #include "utils/file_util.h"
@@ -25,6 +27,24 @@ namespace devilution {
 #define MAX_CHARACTERS 99
 
 extern bool gbValidSaveFile;
+
+/**
+ * @brief Session-scope exclusive lock on the active character's save file.
+ *
+ * Acquired after the active save has been read at session start. Released
+ * when the player returns to the main menu. Existence of the sidecar file
+ * tells concurrent processes to skip this slot in their enumeration and
+ * refuse to start a session against it.
+ */
+extern std::optional<FileLock> gSaveFileLock;
+
+/**
+ * @brief Session-scope exclusive lock on the stash save file.
+ *
+ * Same lifecycle as `gSaveFileLock`. If acquisition fails we mark the
+ * stash as disabled for the session instead of refusing to start.
+ */
+extern std::optional<FileLock> gStashFileLock;
 
 #ifdef UNPACKED_SAVES
 struct SaveReader {
@@ -101,6 +121,49 @@ std::optional<SaveReader> OpenStashArchive();
 const char *pfile_get_password();
 std::unique_ptr<std::byte[]> ReadArchive(SaveReader &archive, const char *pszName, size_t *pdwLen = nullptr);
 void pfile_write_hero(bool writeGameData = false);
+
+/**
+ * @brief Probe-only occupancy check for a character save slot.
+ *
+ * Returns true if a sidecar lock file is present for the slot AND the
+ * owning process is currently alive. Does not steal stale locks.
+ */
+bool IsSaveSlotLocked(uint32_t saveNum);
+
+/**
+ * @brief Probe-only occupancy check for the stash save file.
+ */
+bool IsStashLocked();
+
+/**
+ * @brief Returns the path to the sidecar lock file for a character slot.
+ *
+ * Packed: `<save><ext>.lck`. Unpacked: `<saveDir>/.lock`.
+ */
+std::string GetSaveLockPath(uint32_t saveNum);
+
+/**
+ * @brief Returns the path to the sidecar lock file for the stash.
+ */
+std::string GetStashLockPath();
+
+/**
+ * @brief Attempt to acquire sidecar locks on the active save and stash.
+ *
+ * Character lock is mandatory; on failure shows a modal and returns
+ * false. Stash lock is best-effort: on failure, the stash is marked
+ * disabled for the session and a non-fatal modal is shown. The caller
+ * should call `pfile_release_session_locks` on session end.
+ *
+ * Must be called after `pfile_read_player_from_save` so the slot index
+ * is final.
+ */
+bool AcquireSessionSaveLocks();
+
+/**
+ * @brief Release any currently held session save / stash locks.
+ */
+void ReleaseSessionSaveLocks();
 
 #ifndef DISABLE_DEMOMODE
 /**

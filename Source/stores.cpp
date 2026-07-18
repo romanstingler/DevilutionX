@@ -30,6 +30,7 @@
 #include "multi.h"
 #include "options.h"
 #include "panels/info_box.hpp"
+#include "plrmsg.h"
 #include "qol/stash.h"
 #include "qol/visual_store.h"
 #include "tables/townerdat.hpp"
@@ -2029,6 +2030,10 @@ void BarmaidEnter()
 		break;
 	case 14:
 		ActiveStore = TalkID::None;
+		if (!IsStashAvailable()) {
+			EventPlrMsg(_("Stash is unavailable this session."), UiFlags::ColorRed);
+			break;
+		}
 		IsStashOpen = true;
 		Stash.RefreshItemStatFlags();
 		invflag = true;

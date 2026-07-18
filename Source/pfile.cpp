@@ -35,6 +35,7 @@
 #include "tables/playerdat.hpp"
 #include "utils/endian_read.hpp"
 #include "utils/endian_swap.hpp"
+#include "utils/file_lock.hpp"
 #include "utils/file_util.h"
 #include "utils/language.h"
 #include "utils/parse_int.hpp"
@@ -43,6 +44,7 @@
 #include "utils/stdcompat/filesystem.hpp"
 #include "utils/str_cat.hpp"
 #include "utils/str_split.hpp"
+#include "utils/ui_fwd.h"
 #include "utils/utf8.hpp"
 
 #ifdef UNPACKED_SAVES
@@ -63,6 +65,8 @@ namespace devilution {
 #define PASSWORD_MULTI "szqnlsk1"
 
 bool gbValidSaveFile;
+std::optional<FileLock> gSaveFileLock;
+std::optional<FileLock> gStashFileLock;
 
 namespace {
 
@@ -554,6 +558,68 @@ void RemoveAllInvalidItems(Player &player)
 
 } // namespace
 
+std::string GetSaveLockPath(uint32_t saveNum)
+{
+	// Sidecar lock file path. For packed saves this is `single_0.sv.lck`;
+	// for unpacked saves it lives inside the save directory as `.lock`.
+	const std::string savePath = GetSavePath(saveNum);
+#ifdef UNPACKED_SAVES
+	return savePath + ".lock";
+#else
+	return savePath + ".lck";
+#endif
+}
+
+std::string GetStashLockPath()
+{
+	const std::string stashPath = GetStashSavePath();
+#ifdef UNPACKED_SAVES
+	return stashPath + ".lock";
+#else
+	return stashPath + ".lck";
+#endif
+}
+
+bool IsSaveSlotLocked(uint32_t saveNum)
+{
+	return IsPathLocked(GetSaveLockPath(saveNum).c_str());
+}
+
+bool IsStashLocked()
+{
+	return IsPathLocked(GetStashLockPath().c_str());
+}
+
+bool AcquireSessionSaveLocks()
+{
+	// Character lock is mandatory. If we cannot acquire it, refuse to
+	// enter the game so we don't accidentally clobber a slot that
+	// another instance is currently writing to.
+	gSaveFileLock = FileLock::TryAcquire(GetSaveLockPath(gSaveNumber).c_str());
+	if (!gSaveFileLock) {
+		UiErrorOkDialog(_("Save file locked"), _("This character's save file is currently in use by another Diablo instance. Returning to the character select screen."), /*error=*/true);
+		ReleaseSessionSaveLocks();
+		return false;
+	}
+
+	// Stash lock is best-effort: if we cannot get it, the stash is
+	// disabled for this session rather than blocking game start.
+	StashDisabledForSession = false;
+	gStashFileLock = FileLock::TryAcquire(GetStashLockPath().c_str());
+	if (!gStashFileLock) {
+		StashDisabledForSession = true;
+		UiErrorOkDialog(_("Stash unavailable"), _("Another Diablo instance currently owns the shared stash. The stash will be read-only for this session."), /*error=*/false);
+	}
+
+	return true;
+}
+
+void ReleaseSessionSaveLocks()
+{
+	gSaveFileLock.reset();
+	gStashFileLock.reset();
+}
+
 #ifdef UNPACKED_SAVES
 std::unique_ptr<std::byte[]> SaveReader::ReadFile(const char *filename, std::size_t &fileSize, int32_t &error)
 {
@@ -684,6 +750,11 @@ void sfile_write_stash()
 {
 	if (!Stash.dirty)
 		return;
+	// Skip persistence when the stash was disabled at session start.
+	// Otherwise writes from a previous session could clobber the file
+	// while another instance still owns the lock.
+	if (!IsStashAvailable())
+		return;
 
 	SaveWriter stashWriter = GetStashWriter();
 
@@ -697,6 +768,11 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 	memset(hero_names, 0, sizeof(hero_names));
 
 	for (uint32_t i = 0; i < MAX_CHARACTERS; i++) {
+		// Skip slots owned by another live process to avoid corrupting
+		// their save archive.
+		if (IsSaveSlotLocked(i)) {
+			continue;
+		}
 		std::optional<SaveReader> archive = OpenSaveArchive(i);
 		if (archive) {
 			PlayerPack pkplr;

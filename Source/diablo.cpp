@@ -2719,6 +2719,10 @@ bool StartGame(bool bNewGame, bool bSinglePlayer)
 		}
 		RunGameLoop(uMsg);
 		NetClose();
+		// Release the session-scope save / stash sidecar locks so other
+		// instances (or another game session in the same process) can
+		// enumerate and select this slot again.
+		ReleaseSessionSaveLocks();
 		UnloadFonts();
 
 		// If the player left the game into the main menu,
@@ -2729,6 +2733,7 @@ bool StartGame(bool bNewGame, bool bSinglePlayer)
 			return true;
 	} while (gbRunGameResult);
 
+	ReleaseSessionSaveLocks();
 	SNetDestroy();
 	return gbRunGameResult;
 }

@@ -39,6 +39,12 @@ namespace devilution {
 bool IsStashOpen;
 StashStruct Stash;
 bool IsWithdrawGoldOpen;
+bool StashDisabledForSession;
+
+bool IsStashAvailable()
+{
+	return !StashDisabledForSession;
+}
 
 namespace {
 

@@ -371,6 +371,7 @@ target_link_dependencies(libdevilutionx_surface PUBLIC
 
 add_devilutionx_object_library(libdevilutionx_file_util
   utils/file_util.cpp
+  utils/file_lock.cpp
 )
 target_link_dependencies(libdevilutionx_file_util PRIVATE
   DevilutionX::SDL

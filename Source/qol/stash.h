@@ -75,6 +75,21 @@ extern DVL_API_FOR_TEST StashStruct Stash;
 extern bool IsWithdrawGoldOpen;
 extern int WithdrawGoldValue;
 
+/**
+ * @brief Set when the stash could not be locked at session start.
+ *
+ * When true the stash is treated as read-only and the stash UI is
+ * disabled for the rest of the session.
+ */
+extern bool StashDisabledForSession;
+
+/**
+ * @brief Returns true when the stash can be used this session.
+ *
+ * False when the session flag is set or no active game is running.
+ */
+bool IsStashAvailable();
+
 inline constexpr Size StashGridSize { 10, 10 };
 inline constexpr PointsInRectangle<int> StashGridRange { { { 0, 0 }, StashGridSize } };
 

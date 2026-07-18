@@ -373,8 +373,12 @@ TEST(Writehero, pfile_write_hero)
 	}
 
 	const std::string savePath = paths::BasePath() + "multi_0.sv";
+	const std::string saveLockPath = savePath + ".lck";
+	const std::string stashLockPath = paths::BasePath() + "stash.sv.lck";
 	paths::SetPrefPath(paths::BasePath());
 	RemoveFile(savePath.c_str());
+	RemoveFile(saveLockPath.c_str());
+	RemoveFile(stashLockPath.c_str());
 
 	gbVanilla = true;
 	gbIsHellfire = false;

@@ -38,6 +38,7 @@
 #include "players/validation.hpp"
 #include "plrmsg.h"
 #include "qol/chatlog.h"
+#include "qol/stash.h"
 #include "storm/storm_net.hpp"
 #include "sync.h"
 #include "tmsg.h"
@@ -47,6 +48,7 @@
 #include "utils/language.h"
 #include "utils/log.hpp"
 #include "utils/str_cat.hpp"
+#include "utils/ui_fwd.h"
 
 namespace devilution {
 
@@ -543,6 +545,10 @@ bool InitSingle(GameData *gameData)
 
 	pfile_read_player_from_save(gSaveNumber, *MyPlayer);
 
+	if (!AcquireSessionSaveLocks()) {
+		return false;
+	}
+
 	return true;
 }
 
@@ -573,6 +579,10 @@ bool InitMulti(GameData *gameData)
 	gbIsMultiplayer = true;
 
 	pfile_read_player_from_save(gSaveNumber, *MyPlayer);
+
+	if (!AcquireSessionSaveLocks()) {
+		return false;
+	}
 
 	return true;
 }
