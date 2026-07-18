@@ -6,16 +6,20 @@
 #include "levels/drlg_l2.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <list>
 #include <optional>
+#include <queue>
 
 #include "diablo.h"
+#include "engine/direction.hpp"
 #include "engine/load_file.hpp"
 #include "engine/random.hpp"
 #include "engine/size.hpp"
 #include "levels/gendung.h"
+#include "levels/gendung_defs.hpp"
 #include "levels/setmaps.h"
 #include "player.h"
 #include "quests.h"
@@ -2641,6 +2645,46 @@ void FixDoors()
 	}
 }
 
+bool AreStairsReachable(Point from, Point to)
+{
+	if (from == to)
+		return true;
+	if (from.x < 0 || from.x >= DMAXX || from.y < 0 || from.y >= DMAXY)
+		return false;
+	if (to.x < 0 || to.x >= DMAXX || to.y < 0 || to.y >= DMAXY)
+		return false;
+
+	constexpr std::array<Direction, 4> Steps = {
+		Direction::North, Direction::East, Direction::South, Direction::West
+	};
+
+	bool visited[DMAXX][DMAXY] = {};
+	std::queue<Point> frontier;
+	frontier.push(from);
+	visited[from.x][from.y] = true;
+
+	while (!frontier.empty()) {
+		const Point current = frontier.front();
+		frontier.pop();
+
+		for (const Direction step : Steps) {
+			const Point next = current + step;
+			if (next.x < 0 || next.x >= DMAXX || next.y < 0 || next.y >= DMAXY)
+				continue;
+			if (visited[next.x][next.y])
+				continue;
+			if (TileHasAny(next, TileProperties::Solid))
+				continue;
+			if (next == to)
+				return true;
+			visited[next.x][next.y] = true;
+			frontier.push(next);
+		}
+	}
+
+	return false;
+}
+
 bool PlaceStairs(lvl_entry entry)
 {
 	std::optional<Point> position;
@@ -2651,6 +2695,7 @@ bool PlaceStairs(lvl_entry entry)
 		return false;
 	if (entry == ENTRY_MAIN)
 		ViewPosition = position->megaToWorld() + Displacement { 5, 4 };
+	const Point upStairs = *position + Displacement { 1, 2 };
 
 	// Place stairs down
 	position = PlaceMiniSet(DSTAIRS);
@@ -2658,6 +2703,11 @@ bool PlaceStairs(lvl_entry entry)
 		return false;
 	if (entry == ENTRY_PREV)
 		ViewPosition = position->megaToWorld() + Displacement { 4, 6 };
+	const Point downStairs = *position + Displacement { 1, 2 };
+
+	if (!AreStairsReachable(upStairs, downStairs)) {
+		return false;
+	}
 
 	// Place town warp stairs
 	if (currlevel == 5) {
