@@ -78,10 +78,8 @@ bool IsTileVisibleToParty(Point tile)
 	return HasLineOfSight(gVisibilityOrigin, tile);
 }
 
-uint8_t ComputeVisibilityLevel(Point tile, uint8_t mode)
+uint8_t ComputeVisibilityLevel(Point tile, bool memoryMode)
 {
-	if (mode == 0) // ShadowCullingMode::Off
-		return 0;
 	// Town is always fully visible: the open floor and the buildings are
 	// meant to be seen in their entirety, and there is no LOS radius
 	// gating. This also covers multiplayer (each town is its own
@@ -91,10 +89,10 @@ uint8_t ComputeVisibilityLevel(Point tile, uint8_t mode)
 	if (IsTileVisibleToParty(tile))
 		return 0;
 
-	// Tile is outside the local party's line of sight. In Black mode it is
-	// pitch black; in Memory mode previously-explored tiles are kept as a
-	// dim silhouette instead.
-	if (mode == 2 /* ShadowCullingMode::Memory */ && InDungeonBounds(tile)
+	// Tile is outside the local party's line of sight. With the
+	// explored-memory silhouette enabled, previously-explored tiles are
+	// kept as a dim silhouette instead of pitch black.
+	if (memoryMode && InDungeonBounds(tile)
 	    && HasAnyOf(dFlags[tile.x][tile.y], DungeonFlag::Explored))
 		return VisibilityMemoryLevel;
 

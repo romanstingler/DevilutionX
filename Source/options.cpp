@@ -302,7 +302,23 @@ void OptionEntryBase::NotifyValueChanged()
 
 void OptionEntryBoolean::LoadFromIni(std::string_view category)
 {
-	value = ini->getBool(category, key, defaultValue);
+	// Tolerant load: the option used to be a 3-state enum
+	// (Off=0, Black=1, Memory=2). Accept the legacy
+	// integer values so old saves keep shadow culling enabled.
+	const std::span<const Ini::Value> xs = ini->get(category, key);
+	if (xs.empty() || xs.back().value.empty()) {
+		value = defaultValue;
+		return;
+	}
+	const std::string_view str = xs.back().value;
+	if (str == "0")
+		value = false;
+	else if (str == "1" || str == "true" || str == "True" || str == "TRUE")
+		value = true;
+	else if (str == "2") // legacy Memory -> enabled
+		value = true;
+	else
+		value = defaultValue;
 }
 void OptionEntryBoolean::SaveToIni(std::string_view category) const
 {
@@ -796,12 +812,7 @@ GraphicsOptions::GraphicsOptions()
     , brightness("Brightness Correction", OptionEntryFlags::Invisible, "Brightness Correction", "Brightness correction level.", 0)
     , zoom("Zoom", OptionEntryFlags::None, N_("Zoom"), N_("Zoom on when enabled."), false)
     , perPixelLighting("Per-pixel Lighting", OptionEntryFlags::None, N_("Per-pixel Lighting"), N_("Subtile lighting for smoother light gradients."), DEFAULT_PER_PIXEL_LIGHTING)
-    , shadowCulling("Shadow Culling", OptionEntryFlags::None, N_("Shadow Culling"), N_("Hide tiles outside the local party's line of sight."), ShadowCullingMode::Off,
-          {
-              { ShadowCullingMode::Off, N_("Off") },
-              { ShadowCullingMode::Black, N_("Black") },
-              { ShadowCullingMode::Memory, N_("Memory") },
-          })
+    , shadowCulling("Shadow Culling", OptionEntryFlags::None, N_("Shadow Culling"), N_("Hide tiles outside the local party's line of sight."), true)
     , colorCycling("Color Cycling", OptionEntryFlags::None, N_("Color Cycling"), N_("Color cycling effect used for water, lava, and acid animation."), true)
     , alternateNestArt("Alternate nest art", OptionEntryFlags::OnlyHellfire | OptionEntryFlags::CantChangeInGame, N_("Alternate nest art"), N_("The game will use an alternative palette for Hellfire’s nest tileset."), false)
 #if SDL_VERSION_ATLEAST(2, 0, 0)

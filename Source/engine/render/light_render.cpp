@@ -497,7 +497,7 @@ void BuildLightmap(Point tilePosition, Point targetBufferPosition, uint16_t view
 }
 
 void BuildVisibilityMap(Point tilePosition, Point targetBufferPosition, uint16_t viewportWidth, uint16_t viewportHeight,
-    int rows, int columns, uint_fast8_t microTileLen, uint8_t shadowCullingMode)
+    int rows, int columns, uint_fast8_t microTileLen, bool shadowCulling)
 {
 	// Visibility buffer uses the same dimensions and tile walk as the lightmap.
 	// Stage 3 renders the four corner visibility levels of each cell through the
@@ -519,13 +519,13 @@ void BuildVisibilityMap(Point tilePosition, Point targetBufferPosition, uint16_t
 	for (int i = 0; i < rows; i++) {
 		// Seed q3 for the first cell; subsequent cells reuse the previous q1 as q3.
 		// (Moving East by {+1,-1} shifts the quad: only the old NE corner (q1) is shared as the new SW corner (q3).)
-		uint8_t q3 = ComputeVisibilityLevel(tilePosition + Displacement { 0, 1 }, shadowCullingMode);
+		uint8_t q3 = ComputeVisibilityLevel(tilePosition + Displacement { 0, 1 }, shadowCulling);
 		for (int j = 0; j < columns; j++, tilePosition += Direction::East, targetBufferPosition.x += TILE_WIDTH) {
 			const Point center0 = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 };
 
-			const uint8_t q0 = ComputeVisibilityLevel(tilePosition, shadowCullingMode);
-			const uint8_t q1 = ComputeVisibilityLevel(tilePosition + Displacement { 1, 0 }, shadowCullingMode);
-			const uint8_t q2 = ComputeVisibilityLevel(tilePosition + Displacement { 1, 1 }, shadowCullingMode);
+			const uint8_t q0 = ComputeVisibilityLevel(tilePosition, shadowCulling);
+			const uint8_t q1 = ComputeVisibilityLevel(tilePosition + Displacement { 1, 0 }, shadowCulling);
+			const uint8_t q2 = ComputeVisibilityLevel(tilePosition + Displacement { 1, 1 }, shadowCulling);
 			uint8_t quad[] = { q0, q1, q2, q3 };
 
 			const uint8_t maxVis = std::max({ quad[0], quad[1], quad[2], quad[3] });
@@ -603,7 +603,7 @@ Lightmap::Lightmap(const uint8_t *outBuffer, uint16_t outPitch,
 {
 }
 
-Lightmap Lightmap::build(bool perPixelLighting, uint8_t shadowCullingMode, Point tilePosition, Point targetBufferPosition,
+Lightmap Lightmap::build(bool perPixelLighting, bool shadowCulling, Point tilePosition, Point targetBufferPosition,
     int viewportWidth, int viewportHeight, int rows, int columns,
     const uint8_t *outBuffer, uint16_t outPitch,
     std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,
@@ -614,8 +614,8 @@ Lightmap Lightmap::build(bool perPixelLighting, uint8_t shadowCullingMode, Point
 	if (perPixelLighting) {
 		BuildLightmap(tilePosition, targetBufferPosition, viewportWidth, viewportHeight, rows, columns, tileLights, microTileLen);
 	}
-	if (shadowCullingMode != 0 /* ShadowCullingMode::Off */) {
-		BuildVisibilityMap(tilePosition, targetBufferPosition, viewportWidth, viewportHeight, rows, columns, microTileLen, shadowCullingMode);
+	if (shadowCulling) {
+		BuildVisibilityMap(tilePosition, targetBufferPosition, viewportWidth, viewportHeight, rows, columns, microTileLen, shadowCulling);
 	} else {
 		VisibilityMapBuffer.clear();
 	}

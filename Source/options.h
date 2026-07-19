@@ -81,12 +81,6 @@ enum class FrameRateControl : uint8_t {
 	CPUSleep = 2,
 };
 
-enum class ShadowCullingMode : uint8_t {
-	Off = 0,
-	Black = 1,
-	Memory = 2,
-};
-
 enum class Resampler : uint8_t {
 #ifdef DEVILUTIONX_RESAMPLER_SPEEX
 	Speex = 0,
@@ -555,8 +549,8 @@ struct GraphicsOptions : OptionCategoryBase {
 	OptionEntryBoolean zoom;
 	/** @brief Subtile lighting for smoother light gradients. */
 	OptionEntryBoolean perPixelLighting;
-	/** @brief Hide tiles outside the local party's line of sight. */
-	OptionEntryEnum<ShadowCullingMode> shadowCulling;
+	/** @brief Hide tiles outside the local party's line of sight (explored-memory silhouette). */
+	OptionEntryBoolean shadowCulling;
 	/** @brief Enable color cycling animations. */
 	OptionEntryBoolean colorCycling;
 	/** @brief Use alternate nest palette. */

@@ -11,9 +11,6 @@
 
 namespace devilution {
 
-// Forward declaration; the full definition lives in options.h.
-enum class ShadowCullingMode : uint8_t;
-
 class Lightmap {
 public:
 	explicit Lightmap(const uint8_t *outBuffer, std::span<const uint8_t> lightmapBuffer, uint16_t pitch,
@@ -81,7 +78,7 @@ public:
 	[[nodiscard]] bool isFullyLitLightTable(const uint8_t *lightTable) const { return lightTable == fullyLitLightTable_; }
 	[[nodiscard]] bool isFullyDarkLightTable(const uint8_t *lightTable) const { return lightTable == fullyDarkLightTable_; }
 
-	static Lightmap build(bool perPixelLighting, uint8_t shadowCullingMode, Point tilePosition, Point targetBufferPosition,
+	static Lightmap build(bool perPixelLighting, bool shadowCulling, Point tilePosition, Point targetBufferPosition,
 	    int viewportWidth, int viewportHeight, int rows, int columns,
 	    const uint8_t *outBuffer, uint16_t outPitch,
 	    std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,

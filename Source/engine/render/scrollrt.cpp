@@ -680,8 +680,8 @@ void DrawCell(const Surface &out, const Lightmap lightmap, Point tilePosition, P
 void DrawFloorTile(const Surface &out, const Lightmap &lightmap, Point tilePosition, Point targetBufferPosition)
 {
 	int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
-	if (*GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off) {
-		const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling));
+	if (*GetOptions().Graphics.shadowCulling) {
+		const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, *GetOptions().Graphics.shadowCulling);
 		if (visLevel > lightTableIndex)
 			lightTableIndex = visLevel;
 	}
@@ -787,8 +787,8 @@ void DrawDungeon(const Surface &out, const Lightmap &lightmap, Point tilePositio
 {
 	assert(InDungeonBounds(tilePosition));
 	int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
-	if (*GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off) {
-		const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling));
+	if (*GetOptions().Graphics.shadowCulling) {
+		const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, *GetOptions().Graphics.shadowCulling);
 		if (visLevel > lightTableIndex)
 			lightTableIndex = visLevel;
 	}
@@ -802,8 +802,8 @@ void DrawDungeon(const Surface &out, const Lightmap &lightmap, Point tilePositio
 	if (DebugVision && IsTileLit(tilePosition)) {
 		ClxDraw(out, targetBufferPosition, (*pSquareCel)[0]);
 	}
-	if (DebugShadowCulling && *GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off) {
-		const uint8_t vis = ComputeVisibilityLevel(tilePosition, static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling));
+	if (DebugShadowCulling && *GetOptions().Graphics.shadowCulling) {
+		const uint8_t vis = ComputeVisibilityLevel(tilePosition, *GetOptions().Graphics.shadowCulling);
 		// Draw an overlay square on every tile that shadow culling affects:
 		// visible (vis==0) is skipped, explored-memory and hidden are marked.
 		if (vis != 0)
@@ -1301,12 +1301,11 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// Shadow culling is disabled in town: the town is always fully
 	// visible (open floor + buildings), so culling only adds cost and
 	// visual noise. Each multiplayer town is its own DTYPE_TOWN level.
-	const uint8_t shadowCullingMode = leveltype == DTYPE_TOWN
-	    ? 0 /* ShadowCullingMode::Off */
-	    : static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling);
+	const bool shadowCulling = leveltype != DTYPE_TOWN
+	    && *GetOptions().Graphics.shadowCulling;
 
 	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting,
-	    shadowCullingMode,
+	    shadowCulling,
 	    position, Point {} + offset,
 	    gnScreenWidth, gnViewportHeight, rows, columns,
 	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,
