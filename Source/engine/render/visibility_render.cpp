@@ -82,6 +82,12 @@ uint8_t ComputeVisibilityLevel(Point tile, uint8_t mode)
 {
 	if (mode == 0) // ShadowCullingMode::Off
 		return 0;
+	// Town is always fully visible: the open floor and the buildings are
+	// meant to be seen in their entirety, and there is no LOS radius
+	// gating. This also covers multiplayer (each town is its own
+	// DTYPE_TOWN level), so shadow culling is simply disabled there.
+	if (leveltype == DTYPE_TOWN)
+		return 0;
 	if (IsTileVisibleToParty(tile))
 		return 0;
 

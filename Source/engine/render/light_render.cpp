@@ -500,9 +500,9 @@ void BuildVisibilityMap(Point tilePosition, Point targetBufferPosition, uint16_t
     int rows, int columns, uint_fast8_t microTileLen, uint8_t shadowCullingMode)
 {
 	// Visibility buffer uses the same dimensions and tile walk as the lightmap.
-	// Stage 1 only writes full-LightsMax diamond tiles for tiles that the
-	// local party cannot see, so a single RenderFullTile per hidden tile is
-	// sufficient (matches the diamond footprint of the lightmap exactly).
+	// Stage 3 renders the four corner visibility levels of each cell through the
+	// same marching-squares RenderCell helper, so the per-pixel visibility
+	// channel is a smooth fade instead of hard diamonds (which Stage 1 used).
 	const uint16_t bufferHeight = viewportHeight + (TILE_HEIGHT * (microTileLen / 2 + 1));
 	rows += microTileLen + 2;
 
@@ -514,34 +514,51 @@ void BuildVisibilityMap(Point tilePosition, Point targetBufferPosition, uint16_t
 	rows += 3;
 	columns++;
 
-		uint8_t *visibilityMap = VisibilityMapBuffer.data();
-		for (int i = 0; i < rows; i++) {
-			for (int j = 0; j < columns; j++, tilePosition += Direction::East, targetBufferPosition.x += TILE_WIDTH) {
-				const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, shadowCullingMode);
-				if (visLevel == 0)
-					continue;
-			// Mirror BuildLightmap: RenderCell renders the full diamond at
-			// center0 = targetBufferPosition + {TILE_WIDTH/2, -TILE_HEIGHT/2}.
+	uint8_t *visibilityMap = VisibilityMapBuffer.data();
+	memset(visibilityMap, 0, totalPixels);
+	for (int i = 0; i < rows; i++) {
+		// Seed q3 for the first cell; subsequent cells reuse the previous q1 as q3.
+		// (Moving East by {+1,-1} shifts the quad: only the old NE corner (q1) is shared as the new SW corner (q3).)
+		uint8_t q3 = ComputeVisibilityLevel(tilePosition + Displacement { 0, 1 }, shadowCullingMode);
+		for (int j = 0; j < columns; j++, tilePosition += Direction::East, targetBufferPosition.x += TILE_WIDTH) {
 			const Point center0 = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 };
 
-			// The tile walk deliberately extends beyond the viewport (to cover
-			// bleed-up of wall tiles), so some diamonds lie (partly) outside
-			// the allocated buffer. RenderFullTile writes at
+			const uint8_t q0 = ComputeVisibilityLevel(tilePosition, shadowCullingMode);
+			const uint8_t q1 = ComputeVisibilityLevel(tilePosition + Displacement { 1, 0 }, shadowCullingMode);
+			const uint8_t q2 = ComputeVisibilityLevel(tilePosition + Displacement { 1, 1 }, shadowCullingMode);
+			uint8_t quad[] = { q0, q1, q2, q3 };
+
+			const uint8_t maxVis = std::max({ quad[0], quad[1], quad[2], quad[3] });
+
+			// The buffer is pre-filled with 0 (fully visible), so skip cells
+			// that are entirely visible. Cap to LightsMax-1 to avoid writing
+			// a value equal to the initial fill (mirors BuildLightmap).
+			//
+			// NOTE: unlike the lightmap, the visibility channel renders
+			// *every* non-visible cell (the lightmap skips fully-dark cells,
+			// which happen to be the off-screen-edge tiles). So we must
+			// clip the diamond to the allocated buffer: RenderCell writes at
 			//   top    = base + ((y+1)*pitch) + x - TILE_WIDTH/2
 			//   bottom = top + (TILE_HEIGHT-2)*pitch
-			// and a row of TILE_WIDTH at `top` after the loop. Clip to the
-			// exact in-bounds extent; skipping fully- and partly-outside
-			// tiles is safe because the on-screen region is fully covered by
-			// in-bounds diamonds (the lightmap already draws it).
-			const int topRow = center0.y + 1;
-			const int bottomRow = center0.y + TILE_HEIGHT - 1;
-			const int leftCol = center0.x - TILE_WIDTH / 2;
-			const int rightCol = center0.x + TILE_WIDTH / 2;
-			if (topRow < 0 || bottomRow >= bufferHeight || leftCol < 0 || rightCol >= viewportWidth)
-				continue;
-
-			RenderFullTile(center0, visLevel, visibilityMap, viewportWidth);
+			// and a TILE_WIDTH row at the final `top`. Skipping
+			// out-of-bounds diamonds is safe because the on-screen region
+			// is fully covered by in-bounds diamonds.
+			if (maxVis > 0) {
+				const int topRow = center0.y + 1;
+				const int bottomRow = center0.y + TILE_HEIGHT / 2;
+				const int leftCol = center0.x - TILE_WIDTH / 2;
+				const int rightCol = center0.x + TILE_WIDTH / 2;
+				if (topRow >= 0 && bottomRow < bufferHeight && leftCol >= 0 && rightCol < viewportWidth) {
+					const uint8_t startLevel = std::min(maxVis, static_cast<uint8_t>(LightsMax - 1));
+					for (uint8_t visLevel = startLevel;; --visLevel) {
+						RenderCell(quad, center0, visLevel, visibilityMap, viewportWidth, bufferHeight);
+						if (visLevel == 0) break;
+					}
+				}
 			}
+
+			q3 = q1;
+		}
 
 		tilePosition += Displacement(Direction::West) * columns;
 		targetBufferPosition.x -= columns * TILE_WIDTH;

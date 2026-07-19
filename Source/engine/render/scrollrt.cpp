@@ -1291,10 +1291,22 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DunRenderStats.clear();
 #endif
 
-	SetVisibilityOrigin(MyPlayer->position.tile);
+	// Use the viewport-center tile as the line-of-sight origin. The
+	// player's collision tile (MyPlayer->position.tile) lags during walk
+	// animations and can sit off-screen, which would wrongly mark
+	// on-screen tiles as hidden (most visible in town). ViewPosition is
+	// always the tile at the centre of what is actually drawn.
+	SetVisibilityOrigin(ViewPosition);
+
+	// Shadow culling is disabled in town: the town is always fully
+	// visible (open floor + buildings), so culling only adds cost and
+	// visual noise. Each multiplayer town is its own DTYPE_TOWN level.
+	const uint8_t shadowCullingMode = leveltype == DTYPE_TOWN
+	    ? 0 /* ShadowCullingMode::Off */
+	    : static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling);
 
 	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting,
-	    static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling),
+	    shadowCullingMode,
 	    position, Point {} + offset,
 	    gnScreenWidth, gnViewportHeight, rows, columns,
 	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,
