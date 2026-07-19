@@ -1278,6 +1278,8 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DunRenderStats.clear();
 #endif
 
+	SetVisibilityOrigin(MyPlayer->position.tile);
+
 	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting,
 	    *GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off,
 	    position, Point {} + offset,

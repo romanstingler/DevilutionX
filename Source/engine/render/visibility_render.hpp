@@ -7,14 +7,23 @@
 namespace devilution {
 
 /**
- * @brief Returns true if any active local-party member has the tile marked
- *        Visible in `dFlags`.
+ * @brief Returns true if the tile is within the local party's line of sight,
+ *        i.e. no wall tile blocks the ray from the party to `tile`.
  *
- * In single-player this is equivalent to `IsTileVisible`. In coop, it is the
- * union across all players' vision (already implicit in `dFlags`, which is
- * OR-updated by `ProcessVisionList`).
+ * Unlike `IsTileVisible`, this is independent of the player's vision *radius*:
+ * the open floor of a town stays lit while geometry hidden behind a wall is
+ * reported as not visible (and culled to black by the renderer).
  */
 bool IsTileVisibleToParty(Point tile);
+
+/**
+ * @brief Sets the tile used as the origin for line-of-sight checks.
+ *
+ * Must be called once per frame (before the dungeon is drawn) with the local
+ * player's tile. Kept separate from the LOS query so that the visibility
+ * module does not depend on the heavy `player.h` include chain.
+ */
+void SetVisibilityOrigin(Point origin);
 
 /**
  * @brief Per-tile shadow-culling level, in the same 0..15 scale as `dLight`.

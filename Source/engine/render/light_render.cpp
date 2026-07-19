@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <span>
 #include <vector>
 
@@ -514,14 +515,34 @@ void BuildVisibilityMap(Point tilePosition, Point targetBufferPosition, uint16_t
 	rows += 3;
 	columns++;
 
-	uint8_t *visibilityMap = VisibilityMapBuffer.data();
-	for (int i = 0; i < rows; i++) {
-		for (int j = 0; j < columns; j++, tilePosition += Direction::East, targetBufferPosition.x += TILE_WIDTH) {
-			const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, true);
-			if (visLevel == 0)
+		uint8_t *visibilityMap = VisibilityMapBuffer.data();
+		for (int i = 0; i < rows; i++) {
+			for (int j = 0; j < columns; j++, tilePosition += Direction::East, targetBufferPosition.x += TILE_WIDTH) {
+				const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, true);
+				if (visLevel == 0)
+					continue;
+			// Mirror BuildLightmap: RenderCell renders the full diamond at
+			// center0 = targetBufferPosition + {TILE_WIDTH/2, -TILE_HEIGHT/2}.
+			const Point center0 = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 };
+
+			// The tile walk deliberately extends beyond the viewport (to cover
+			// bleed-up of wall tiles), so some diamonds lie (partly) outside
+			// the allocated buffer. RenderFullTile writes at
+			//   top    = base + ((y+1)*pitch) + x - TILE_WIDTH/2
+			//   bottom = top + (TILE_HEIGHT-2)*pitch
+			// and a row of TILE_WIDTH at `top` after the loop. Clip to the
+			// exact in-bounds extent; skipping fully- and partly-outside
+			// tiles is safe because the on-screen region is fully covered by
+			// in-bounds diamonds (the lightmap already draws it).
+			const int topRow = center0.y + 1;
+			const int bottomRow = center0.y + TILE_HEIGHT - 1;
+			const int leftCol = center0.x - TILE_WIDTH / 2;
+			const int rightCol = center0.x + TILE_WIDTH / 2;
+			if (topRow < 0 || bottomRow >= bufferHeight || leftCol < 0 || rightCol >= viewportWidth)
 				continue;
-			RenderFullTile(targetBufferPosition, visLevel, visibilityMap, viewportWidth);
-		}
+
+			RenderFullTile(center0, visLevel, visibilityMap, viewportWidth);
+			}
 
 		tilePosition += Displacement(Direction::West) * columns;
 		targetBufferPosition.x -= columns * TILE_WIDTH;
