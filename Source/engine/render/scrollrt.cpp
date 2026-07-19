@@ -680,8 +680,11 @@ void DrawCell(const Surface &out, const Lightmap lightmap, Point tilePosition, P
 void DrawFloorTile(const Surface &out, const Lightmap &lightmap, Point tilePosition, Point targetBufferPosition)
 {
 	int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
-	if (*GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off && !IsTileVisibleToParty(tilePosition))
-		lightTableIndex = LightsMax;
+	if (*GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off) {
+		const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling));
+		if (visLevel > lightTableIndex)
+			lightTableIndex = visLevel;
+	}
 
 	const uint8_t *tbl = LightTables[lightTableIndex].data();
 #ifdef _DEBUG
@@ -784,8 +787,11 @@ void DrawDungeon(const Surface &out, const Lightmap &lightmap, Point tilePositio
 {
 	assert(InDungeonBounds(tilePosition));
 	int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
-	if (*GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off && !IsTileVisibleToParty(tilePosition))
-		lightTableIndex = LightsMax;
+	if (*GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off) {
+		const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling));
+		if (visLevel > lightTableIndex)
+			lightTableIndex = visLevel;
+	}
 
 	DrawCell(out, lightmap, tilePosition, targetBufferPosition, lightTableIndex);
 
@@ -795,6 +801,13 @@ void DrawDungeon(const Surface &out, const Lightmap &lightmap, Point tilePositio
 #ifdef _DEBUG
 	if (DebugVision && IsTileLit(tilePosition)) {
 		ClxDraw(out, targetBufferPosition, (*pSquareCel)[0]);
+	}
+	if (DebugShadowCulling && *GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off) {
+		const uint8_t vis = ComputeVisibilityLevel(tilePosition, static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling));
+		// Draw an overlay square on every tile that shadow culling affects:
+		// visible (vis==0) is skipped, explored-memory and hidden are marked.
+		if (vis != 0)
+			ClxDraw(out, targetBufferPosition, (*pSquareCel)[0]);
 	}
 #endif
 
@@ -1281,7 +1294,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	SetVisibilityOrigin(MyPlayer->position.tile);
 
 	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting,
-	    *GetOptions().Graphics.shadowCulling != ShadowCullingMode::Off,
+	    static_cast<uint8_t>(*GetOptions().Graphics.shadowCulling),
 	    position, Point {} + offset,
 	    gnScreenWidth, gnViewportHeight, rows, columns,
 	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,

@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <span>
 #include <vector>
@@ -498,7 +497,7 @@ void BuildLightmap(Point tilePosition, Point targetBufferPosition, uint16_t view
 }
 
 void BuildVisibilityMap(Point tilePosition, Point targetBufferPosition, uint16_t viewportWidth, uint16_t viewportHeight,
-    int rows, int columns, uint_fast8_t microTileLen)
+    int rows, int columns, uint_fast8_t microTileLen, uint8_t shadowCullingMode)
 {
 	// Visibility buffer uses the same dimensions and tile walk as the lightmap.
 	// Stage 1 only writes full-LightsMax diamond tiles for tiles that the
@@ -518,7 +517,7 @@ void BuildVisibilityMap(Point tilePosition, Point targetBufferPosition, uint16_t
 		uint8_t *visibilityMap = VisibilityMapBuffer.data();
 		for (int i = 0; i < rows; i++) {
 			for (int j = 0; j < columns; j++, tilePosition += Direction::East, targetBufferPosition.x += TILE_WIDTH) {
-				const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, true);
+				const uint8_t visLevel = ComputeVisibilityLevel(tilePosition, shadowCullingMode);
 				if (visLevel == 0)
 					continue;
 			// Mirror BuildLightmap: RenderCell renders the full diamond at
@@ -587,7 +586,7 @@ Lightmap::Lightmap(const uint8_t *outBuffer, uint16_t outPitch,
 {
 }
 
-Lightmap Lightmap::build(bool perPixelLighting, bool shadowCullingActive, Point tilePosition, Point targetBufferPosition,
+Lightmap Lightmap::build(bool perPixelLighting, uint8_t shadowCullingMode, Point tilePosition, Point targetBufferPosition,
     int viewportWidth, int viewportHeight, int rows, int columns,
     const uint8_t *outBuffer, uint16_t outPitch,
     std::span<const std::array<uint8_t, LightTableSize>, NumLightingLevels> lightTables,
@@ -598,8 +597,8 @@ Lightmap Lightmap::build(bool perPixelLighting, bool shadowCullingActive, Point 
 	if (perPixelLighting) {
 		BuildLightmap(tilePosition, targetBufferPosition, viewportWidth, viewportHeight, rows, columns, tileLights, microTileLen);
 	}
-	if (shadowCullingActive) {
-		BuildVisibilityMap(tilePosition, targetBufferPosition, viewportWidth, viewportHeight, rows, columns, microTileLen);
+	if (shadowCullingMode != 0 /* ShadowCullingMode::Off */) {
+		BuildVisibilityMap(tilePosition, targetBufferPosition, viewportWidth, viewportHeight, rows, columns, microTileLen, shadowCullingMode);
 	} else {
 		VisibilityMapBuffer.clear();
 	}

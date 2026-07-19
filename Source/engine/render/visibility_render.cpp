@@ -78,12 +78,20 @@ bool IsTileVisibleToParty(Point tile)
 	return HasLineOfSight(gVisibilityOrigin, tile);
 }
 
-uint8_t ComputeVisibilityLevel(Point tile, bool shadowCullingActive)
+uint8_t ComputeVisibilityLevel(Point tile, uint8_t mode)
 {
-	if (!shadowCullingActive)
+	if (mode == 0) // ShadowCullingMode::Off
 		return 0;
 	if (IsTileVisibleToParty(tile))
 		return 0;
+
+	// Tile is outside the local party's line of sight. In Black mode it is
+	// pitch black; in Memory mode previously-explored tiles are kept as a
+	// dim silhouette instead.
+	if (mode == 2 /* ShadowCullingMode::Memory */ && InDungeonBounds(tile)
+	    && HasAnyOf(dFlags[tile.x][tile.y], DungeonFlag::Explored))
+		return VisibilityMemoryLevel;
+
 	return static_cast<uint8_t>(LightsMax);
 }
 

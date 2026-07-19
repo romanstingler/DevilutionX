@@ -84,6 +84,7 @@ enum class FrameRateControl : uint8_t {
 enum class ShadowCullingMode : uint8_t {
 	Off = 0,
 	Black = 1,
+	Memory = 2,
 };
 
 enum class Resampler : uint8_t {

@@ -7,6 +7,16 @@
 namespace devilution {
 
 /**
+ * @brief Per-tile shadow-culling level used for the explored-memory
+ *        silhouette in `ShadowCullingMode::Memory`.
+ *
+ * 0   – fully visible (no extra darkening).
+ * 15  – pitch black (`LightsMax`).
+ * 12  – dim silhouette for explored-but-not-currently-visible tiles.
+ */
+constexpr uint8_t VisibilityMemoryLevel = 12;
+
+/**
  * @brief Returns true if the tile is within the local party's line of sight,
  *        i.e. no wall tile blocks the ray from the party to `tile`.
  *
@@ -28,12 +38,15 @@ void SetVisibilityOrigin(Point origin);
 /**
  * @brief Per-tile shadow-culling level, in the same 0..15 scale as `dLight`.
  *
- * 0   – tile is fully visible, no extra darkening from shadow culling.
- * 15  – tile is outside the local party's LOS and must render pitch black.
+ * 0    – tile is fully visible, no extra darkening from shadow culling.
+ * 15   – tile is outside the local party's LOS and must render pitch black.
+ * 12   – (Memory mode) tile has been explored but is not currently
+ *         visible, rendered as a dim silhouette.
  *
- * Stage 1 (Black) keeps this binary. Stage 2 will add an intermediate value
- * for the explored-memory silhouette.
+ * `mode` is the underlying value of `ShadowCullingMode` (Off=0,
+ * Black=1, Memory=2). Kept as a plain `uint8_t` so this module
+ * does not depend on `options.h` (and its heavy transitive includes).
  */
-uint8_t ComputeVisibilityLevel(Point tile, bool shadowCullingActive);
+uint8_t ComputeVisibilityLevel(Point tile, uint8_t mode);
 
 } // namespace devilution

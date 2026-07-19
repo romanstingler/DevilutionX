@@ -800,6 +800,7 @@ GraphicsOptions::GraphicsOptions()
           {
               { ShadowCullingMode::Off, N_("Off") },
               { ShadowCullingMode::Black, N_("Black") },
+              { ShadowCullingMode::Memory, N_("Memory") },
           })
     , colorCycling("Color Cycling", OptionEntryFlags::None, N_("Color Cycling"), N_("Color cycling effect used for water, lava, and acid animation."), true)
     , alternateNestArt("Alternate nest art", OptionEntryFlags::OnlyHellfire | OptionEntryFlags::CantChangeInGame, N_("Alternate nest art"), N_("The game will use an alternative palette for Hellfire’s nest tileset."), false)
