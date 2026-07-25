@@ -5,7 +5,6 @@
  */
 #include "loadsave.h"
 
-#include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -20,7 +19,6 @@
 #include "control/control.hpp"
 #include "cursor.h"
 #include "dead.h"
-#include "doom.h"
 #include "engine/point.hpp"
 #include "engine/random.hpp"
 #include "game_mode.hpp"
@@ -2574,10 +2572,30 @@ tl::expected<void, std::string> LoadGame(bool firstflag)
 		for (int i = 0; i < ActiveObjectCount; i++)
 			SyncObjectAnim(Objects[ActiveObjects[i]]);
 
-		ActiveLightCount = file.NextBE<int32_t>();
-
-		for (uint8_t &lightId : ActiveLights)
-			lightId = file.NextLE<uint8_t>();
+		constexpr int LegacyMaxLights = 32;
+		const auto lightingVersion = file.NextLE<uint8_t>();
+		if (lightingVersion == 0) {
+			const auto b1 = file.NextLE<uint8_t>();
+			const auto b2 = file.NextLE<uint8_t>();
+			const auto b3 = file.NextLE<uint8_t>();
+			ActiveLightCount = (static_cast<int>(b1) << 16) | (static_cast<int>(b2) << 8) | static_cast<int>(b3);
+			for (int i = 0; i < LegacyMaxLights; i++)
+				ActiveLights[i] = file.NextLE<uint8_t>();
+		} else {
+			ActiveLightCount = file.NextBE<int32_t>();
+			for (int i = 0; i < ActiveLightCount; i++)
+				ActiveLights[i] = file.NextLE<uint8_t>();
+		}
+		{
+			bool used[MAXLIGHTS] = {};
+			for (int i = 0; i < ActiveLightCount; i++)
+				used[ActiveLights[i]] = true;
+			int freeIdx = ActiveLightCount;
+			for (uint8_t id = 0; id < MAXLIGHTS; id++) {
+				if (!used[id])
+					ActiveLights[freeIdx++] = id;
+			}
+		}
 		for (int i = 0; i < ActiveLightCount; i++)
 			LoadLighting(&file, &Lights[ActiveLights[i]]);
 
@@ -2847,10 +2865,10 @@ void SaveGameData(SaveWriter &saveWriter)
 		for (int i = 0; i < ActiveObjectCount; i++)
 			SaveObject(file, Objects[ActiveObjects[i]]);
 
+		file.WriteLE<uint8_t>(1);
 		file.WriteBE<int32_t>(ActiveLightCount);
-
-		for (const uint8_t lightId : ActiveLights)
-			file.WriteLE<uint8_t>(lightId);
+		for (int i = 0; i < ActiveLightCount; i++)
+			file.WriteLE<uint8_t>(ActiveLights[i]);
 		for (int i = 0; i < ActiveLightCount; i++)
 			SaveLighting(&file, &Lights[ActiveLights[i]]);
 
