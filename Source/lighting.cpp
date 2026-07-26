@@ -387,7 +387,7 @@ void AddUnLight(int i)
 	if (DisableLighting)
 		return;
 #endif
-	if (i == NO_LIGHT)
+	if (i < 0 || i >= MAXLIGHTS)
 		return;
 
 	Lights[i].isInvalid = true;
@@ -401,7 +401,7 @@ void ChangeLightRadius(int i, uint8_t radius)
 	if (DisableLighting)
 		return;
 #endif
-	if (i == NO_LIGHT)
+	if (i < 0 || i >= MAXLIGHTS)
 		return;
 
 	Light &light = Lights[i];
@@ -419,7 +419,7 @@ void ChangeLightXY(int i, Point position)
 	if (DisableLighting)
 		return;
 #endif
-	if (i == NO_LIGHT)
+	if (i < 0 || i >= MAXLIGHTS)
 		return;
 
 	Light &light = Lights[i];
@@ -437,7 +437,7 @@ void ChangeLightOffset(int i, DisplacementOf<int8_t> offset)
 	if (DisableLighting)
 		return;
 #endif
-	if (i == NO_LIGHT)
+	if (i < 0 || i >= MAXLIGHTS)
 		return;
 
 	Light &light = Lights[i];
@@ -458,7 +458,7 @@ void ChangeLight(int i, Point position, uint8_t radius)
 	if (DisableLighting)
 		return;
 #endif
-	if (i == NO_LIGHT)
+	if (i < 0 || i >= MAXLIGHTS)
 		return;
 
 	Light &light = Lights[i];
