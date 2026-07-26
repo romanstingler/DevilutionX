@@ -6,6 +6,36 @@ from glob import glob
 import polib
 
 
+def hasUnbalancedBraces(s):
+	"""Check for unmatched { or } in a format string, accounting for {{ }} escapes."""
+	depth = 0
+	i = 0
+	while i < len(s):
+		if s[i] == '{':
+			if i + 1 < len(s) and s[i + 1] == '{':
+				i += 2
+				continue
+			depth += 1
+		elif s[i] == '}':
+			if i + 1 < len(s) and s[i + 1] == '}':
+				i += 2
+				continue
+			depth -= 1
+			if depth < 0:
+				return True
+		i += 1
+	return depth != 0
+
+
+def validateBraces(translation):
+	if translation == '':
+		return True
+	if hasUnbalancedBraces(translation):
+		print(f"\033[31mUnbalanced braces in: {translation}\033[0m")
+		return False
+	return True
+
+
 def validateEntry(original, translation):
 	if translation == '':
 		return True
@@ -31,12 +61,11 @@ def validateEntry(original, translation):
 		src_arguments.sort()
 		translated_arguments.sort()
 
-	if src_arguments == translated_arguments:
-		return True
+	if src_arguments != translated_arguments:
+		print(f"\033[36m{original}\033[0m != \033[31m{translation}\033[0m")
+		return False
 
-	print(f"\033[36m{original}\033[0m != \033[31m{translation}\033[0m")
-
-	return False
+	return True
 
 
 status = 0
@@ -47,11 +76,23 @@ for path in sorted(files):
 	print(f"\033[32mValidating {po.metadata['Language']}\033[0m : {po.percent_translated()}% translated")
 
 	for entry in po:
+		translations = []
+		if entry.msgid_plural:
+			translations = list(entry.msgstr_plural.values())
+		else:
+			translations = [entry.msgstr]
+
+		# Brace balance is always checked, even for fuzzy entries,
+		# because un-fuzzying without fixing the braces would ship a crash.
+		for translation in translations:
+			if not validateBraces(translation):
+				status = 255
+
 		if entry.fuzzy:
 			continue
 
 		if entry.msgid_plural:
-			for translation in entry.msgstr_plural.values():
+			for translation in translations:
 				if not validateEntry(entry.msgid_plural, translation):
 					status = 255
 			continue
