@@ -126,7 +126,7 @@ void BufferInit(TBuffer *pBuf)
 
 void CopyPacket(TBuffer *buf, const std::byte *packet, size_t size)
 {
-	if (buf->dwNextWriteOffset + size + 2 > 0x1000) {
+	if (size > 0x1000 - 2 || buf->dwNextWriteOffset > 0x1000 - (size + 2)) {
 		return;
 	}
 
@@ -154,8 +154,9 @@ std::byte *CopyBufferedPackets(std::byte *destination, TBuffer *source, size_t *
 			srcPtr += chunkSize;
 			*size -= chunkSize;
 		}
-		memmove(source->bData, srcPtr, (source->bData - srcPtr) + source->dwNextWriteOffset + 1);
-		source->dwNextWriteOffset += source->bData - srcPtr;
+		const auto consumed = static_cast<size_t>(srcPtr - source->bData);
+		memmove(source->bData, srcPtr, source->dwNextWriteOffset - consumed + 1);
+		source->dwNextWriteOffset -= consumed;
 		return destination;
 	}
 	return destination;
